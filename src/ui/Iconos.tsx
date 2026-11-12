@@ -12,6 +12,12 @@ const TRAZOS = {
   alerta: 'M12 4 2.5 20h19L12 4Zm0 6v4m0 3h.01',
   cerrar: 'M6 6l12 12M18 6 6 18',
   ir: 'M5 12h14m-6-6 6 6-6 6',
+  rayo: 'M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z',
+  lista: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  copiar: 'M9 9h10v11H9zM5 15V4h10',
+  luna: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
+  foco: 'M9.5 18h5M10.5 21h3M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z',
+  puerta: 'M6 21V4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21M3.5 21h17M14.5 12.5h.01',
 } as const;
 
 export function Icono({ nombre }: { nombre: keyof typeof TRAZOS }) {

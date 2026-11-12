@@ -352,6 +352,7 @@ export function resolverCasa(casa: Casa): CasaResuelta {
   // Límites de lo construido
   const esquinas: Punto2[] = [];
   for (const p of paredes) {
+    if (p.pared.cerco) continue; // los muros del terreno no cuentan para encuadrar la casa
     const ini = add(p.a, mul(p.dir, -p.extInicio));
     const fin = add(p.a, mul(p.dir, p.largo + p.extFin));
     const n = mul(izquierdaDe(p.dir), p.espesor / 2);
@@ -368,6 +369,7 @@ export function resolverCasa(casa: Casa): CasaResuelta {
   for (const p of paredes) {
     for (const ladoActual of ['izq', 'der'] as Lado[]) {
       const amb = ladoActual === 'izq' ? p.izq : p.der;
+      if (p.pared.cerco && !amb) continue; // cara de un cerco hacia el vecino o la calle
       const normal = ladoActual === 'izq' ? izquierdaDe(p.dir) : derechaDe(p.dir);
       const clave = amb ? `${amb}|${claveDir(normal)}` : `exterior|${claveDir(normal)}`;
       if (!grupos.has(clave)) grupos.set(clave, { normal, ambiente: amb, caras: [] });

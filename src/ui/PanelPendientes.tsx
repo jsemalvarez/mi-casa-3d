@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useCasaResuelta, useEstado } from '../estado';
-import { juntarPendientes, type Pendiente } from '../modelo/pendientes';
+import { useEstado, usePendientes } from '../estado';
+import type { Pendiente } from '../modelo/pendientes';
 import { Icono } from './Iconos';
 
 /** Lista de todo lo provisorio (los `todo` de los datos) y advertencias de validación. */
@@ -9,8 +9,7 @@ export function PanelPendientes() {
   const setPanel = useEstado((s) => s.setPanel);
   const setModo = useEstado((s) => s.setModo);
   const irAVista = useEstado((s) => s.irAVista);
-  const resuelta = useCasaResuelta();
-  const lista = useMemo(() => juntarPendientes(resuelta.casa, resuelta), [resuelta]);
+  const { lista, advertencias } = usePendientes();
 
   const grupos = useMemo(() => {
     const g = new Map<string, Pendiente[]>();
@@ -42,11 +41,11 @@ export function PanelPendientes() {
         </button>
       </div>
       <div className="panel-cuerpo">
-        {resuelta.advertencias.length > 0 && (
+        {advertencias.length > 0 && (
           <section>
             <h3 className="advertencia">Advertencias de los datos</h3>
             <ul>
-              {resuelta.advertencias.map((a, k) => (
+              {advertencias.map((a, k) => (
                 <li key={k} className="item advertencia">
                   {a}
                 </li>

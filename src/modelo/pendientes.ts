@@ -10,7 +10,7 @@ export interface Pendiente {
 }
 
 /** Junta todos los `todo` de los datos para mostrarlos en la web. */
-export function juntarPendientes(casa: Casa, resuelta: CasaResuelta): Pendiente[] {
+export function juntarPendientes(casa: Casa, resuelta: CasaResuelta, extra: Pendiente[] = []): Pendiente[] {
   const lista: Pendiente[] = [];
   for (const t of casa.pendientes) lista.push({ categoria: 'General', elemento: 'Casa', texto: t });
   if (casa.norte.todo) lista.push({ categoria: 'General', elemento: 'Orientación', texto: casa.norte.todo });
@@ -49,5 +49,5 @@ export function juntarPendientes(casa: Casa, resuelta: CasaResuelta): Pendiente[
   for (const m of casa.muebles) {
     if (m.todo) lista.push({ categoria: 'Muebles', elemento: m.nombre, texto: m.todo, ir: { modo: 'planta' } });
   }
-  return lista;
+  return [...lista, ...extra];
 }

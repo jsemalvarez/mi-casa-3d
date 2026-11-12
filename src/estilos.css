@@ -468,8 +468,106 @@ select {
   color: var(--advertencia);
 }
 
+/* ── Materiales ─────────────────────────────────────────────────── */
+.acciones {
+  display: flex;
+  gap: 6px;
+}
+
+/* Noche, luces y puertas: a la derecha, a media altura */
+.controles-escena {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.chip.copiar {
+  margin: 6px 4px 2px;
+  box-shadow: none;
+}
+
+.fila-material {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12.5px;
+}
+
+.fila-material.a-definir {
+  color: var(--advertencia);
+}
+
+.material-nombre {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.material-nombre span {
+  color: var(--texto-suave);
+  font-size: 11.5px;
+}
+
+.material-cantidad {
+  flex: none;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.muestra {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border-radius: 4px;
+}
+
+.tabla-ambientes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-ambientes th {
+  color: var(--texto-suave);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-align: center;
+  padding: 2px 4px 6px;
+}
+
+.tabla-ambientes td {
+  padding: 5px 4px;
+  border-top: 1px solid var(--borde-ui);
+  text-align: center;
+}
+
+.tabla-ambientes td:first-child {
+  text-align: left;
+}
+
+.panel .nota {
+  margin: 14px 4px 0;
+  color: var(--texto-suave);
+  font-size: 11.5px;
+}
+
 @media (max-width: 520px) {
   .marca small {
+    display: none;
+  }
+  .texto-largo {
     display: none;
   }
   .modos button {

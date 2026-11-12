@@ -11,8 +11,8 @@ Hecha con **Vite + React + TypeScript + React Three Fiber** (y drei para cámara
 | Fase | Contenido | Estado |
 | --- | --- | --- |
 | 1 | Modelo de datos, paredes, aberturas, pisos, cámaras | ✅ hecha |
-| 2 | Luces con encendido/apagado y modo día/noche | pendiente |
-| 3 | Cable canal y puntos eléctricos | pendiente |
+| 2 | Luces con encendido/apagado y modo día/noche | ✅ hecha (12/11/2026), con puertas que abren y cierran |
+| 3 | Cable canal y puntos eléctricos | propuesta 1 cargada (12/11/2026), con cómputo de materiales y línea del medidor; falta que la revises |
 | 4 | Muebles | cargados en todos los ambientes (de las fotos); faltan medidas con cinta |
 | 5 | Escenarios (con URL propia) y panel de edición | pendiente |
 
@@ -53,6 +53,17 @@ Vercel detecta Vite solo (build `npm run build`, salida `dist`). Cada push a `ma
 - **Oficina** (en 3D y planta): corta a 1,20 m sobre el piso de la oficina para verla por dentro. En
   planta muestra la planta alta.
 - **Nombres**: muestra u oculta las etiquetas de los ambientes.
+- **Eléctrica** (en 3D, planta y paredes): muestra u oculta el cable canal, las cajas, el tablero y la línea
+  del medidor (en rojo; con trazos si va enterrada). Los artefactos de luz se ven siempre. En planta el canal
+  se dibuja en naranja y cada caja tiene una ficha: cuadrada amarilla = teclas, redonda con el color del
+  circuito = tomas. Donde el canal termina contra la pared hay un aro negro: ahí el cable atraviesa la pared
+  (a un aplique o un toma del otro lado).
+- **Noche · Luces · Puertas** (a la derecha): de noche no hay sol y se ven solo las luces prendidas (si estaban
+  todas apagadas, se prenden todas). **Luces** prende o apaga todo; **Puertas** cierra o abre todas (también el portón del pasillo y la puerta balcón, que es corrediza). Además,
+  **tocando** una puerta, un artefacto de luz o una tecla se cambia solo eso (también en el recorrido; las
+  puertas cerradas no se atraviesan). Las vistas de pared se ven siempre de día.
+- **Materiales** (arriba a la derecha): cómputo de la instalación (canal, accesorios, cajas, módulos, cables,
+  tablero, luminarias), circuitos y puntos por ambiente. **Copiar la lista** la deja en texto para mandar.
 - **Centrar**: vuelve a encuadrar.
 - En celulares en vertical la planta se gira 90° para aprovechar la pantalla; la flecha **N** indica el norte.
 
@@ -86,13 +97,18 @@ src/
   data/
     tipos.ts        ← tipos del modelo (qué campos tiene cada cosa)
     casa.ts         ← LA CASA: ambientes, paredes, aberturas, entrepiso, colores
+    electrica.ts    ← LA INSTALACIÓN: circuitos, tablero, luces, cajas (teclas y tomas) y recorridos de canal
     escenarios/     ← (fase 5) variantes que guardan solo lo que cambia
   modelo/
     geometria.ts    ← uniones de paredes, piezas alrededor de aberturas, vistas de frente
     techos.ts       ← techos inclinados: faldones, alturas y hastiales
     colisiones.ts   ← choques del recorrido
+    electrica.ts    ← red de canal, cables de cada circuito y cómputo de materiales
     pendientes.ts   ← junta los `todo` para el panel
   escena/           ← componentes 3D (solo dibujan lo que dicen los datos)
+    Luces.tsx       ← artefactos y fuentes de luz de cada lámpara
+    zonasLuz.ts     ← limita la luz de cada lámpara a su ambiente (ver Notas técnicas)
+    tocar.ts        ← clics sobre puertas, luces y teclas (solo si están a la vista)
   ui/               ← barras, panel de pendientes, joystick
   estado.ts         ← estado de la interfaz (zustand)
 ```
@@ -261,9 +277,75 @@ Agregá un objeto en `muebles` (en `casa.ts`):
 
 Los muebles a la altura del cuerpo frenan en el recorrido (las alacenas no; el plato de ducha tampoco).
 
-### …una luz
+### …una luz, una tecla o un toma
 
-Llega en la fase 2; esta sección se completa ahí.
+Ver **Instalación eléctrica** más abajo.
+
+## Instalación eléctrica
+
+A la vista, con **cable canal negro**. Está en [`src/data/electrica.ts`](src/data/electrica.ts) (tipos en
+`tipos.ts`) y se calcula en [`src/modelo/electrica.ts`](src/modelo/electrica.ts). Las posiciones salen de las
+caras de los ambientes de `casa.ts`: si cambia una medida de la casa, la instalación se corre con ella.
+
+**Propuesta 1 (12/11/2026)**
+
+- Una sola línea de canal a **2,40 m** en todas las paredes (arriba de puertas y ventanas, abajo de las vigas
+  del cuarto 1). De ahí baja derecho a cada caja y sube por el techo, entre viga y viga, a cada boca de luz.
+  Detrás de la mesada corre otra a 1,25 y en la oficina otra a 1,00 sobre su piso (encima del escritorio).
+- Teclas a 1,10 · tomas bajos a 0,35 · tomas de mesada a 1,25.
+- **Tablero** en el frente de la cocina, entre la ventana y la puerta. El canal sale por arriba en dos: hacia
+  el cuarto 1 y hacia la mesada.
+- **Medidor** (croquis del 12/11/2026): en un pilar sobre la línea de la calle, en la punta del muro del pasillo
+  del lado opuesto a la casa (el pasillo, de 2,40 m × 20 m, está en `casa.ts`: ver Distribución). La **línea principal** (supuesta
+  enterrada en caño a 60 cm, 2 × 10 mm²) va por el costado del pasillo que da a la casa y entra justo debajo del
+  tablero: unos 26 m de recorrido. Está en `lineaPrincipal` y el cómputo la suma.
+- **Circuitos**: luces (1,5 mm², 10 A) · tomas de la cocina · tomas de lavadero, baño y patio · tomas de los
+  cuartos y la oficina (2,5 mm², 16 A) · termotanque eléctrico de la garita del patio (TUE, 2,5 mm², 16 A) ·
+  luces del pasillo (1,5 mm², 10 A). Gabinete de 18 módulos. Diferencial de 40 A / 30 mA y termomagnéticas bipolares.
+- Luces: tres colgantes en la viga de la cumbrera de la cocina, plafones en los demás ambientes, tira de LED
+  bajo la alacena, apliques en la escalera, el espejo, la entrada y el patio. La escalera se prende abajo y
+  arriba (combinación).
+- **Pasillo de entrada**: cuatro apliques tipo tortuga sobre el muro del lado de la casa, con combinación entre
+  la entrada y el portón. El canal sale por el frente de la cocina, al lado de la ventanita, y va a 1,90 (los
+  muros tienen 2,00).
+- **Calefactor** (a gas, tiro balanceado, en la pared del patio): el canal pasa a 2,40, 1,60 m por encima;
+  los tomas del comedor y el aplique del patio se corrieron para que no queden al lado ni arriba de él.
+
+| Colección | Qué es | Campos principales |
+| --- | --- | --- |
+| `circuitos` | Lo que sale del tablero | `id`, `nombre`, `tipo` (`IUG` luces / `TUG` tomas / `TUE` uso especial), `seccion`, `termica`, `color` |
+| `tablero` | Gabinete con las protecciones | como una caja de pared + `ancho`, `alto`, `modulos` |
+| `cajas` | Cajas de pared con teclas y tomas | `pared`, `ambiente`, `en`, `altura`, `entrepiso?`, `atraviesa?`, `modulos` |
+| `luces` | Bocas de luz | `tipo`, `circuito`, `ambiente`, `techo` ([x, z]) o `pared`, `desde?`, `entrepiso?` |
+| `canales` | Recorridos de cable canal | `puntos`: polilínea en [x, y, z] apoyada en las caras de las paredes |
+| `medidas` | Medidas de canal | `nombre`, `ancho`, `alto`, `capacidad` (mm² de cables que entran) |
+
+- **Ubicar en una pared**: `pared` + `ambiente` (la cara que da a ese ambiente) + `en` (la coordenada x o z del
+  centro, según hacia dónde corre la pared) + `altura`. Con `entrepiso: 'oficina'` la altura se mide desde el
+  piso de la oficina. Con `atraviesa: true` el punto queda en la otra cara (afuera, en el patio) y el cable
+  cruza la pared.
+- **Módulos** de una caja (cada uno ocupa un lugar; hasta 3 por bastidor): `{ tipo: 'toma', circuito }`,
+  `{ tipo: 'tecla', luces: [...] }` o `{ tipo: 'combinacion', luces: [...], con: 'id de la otra caja' }`.
+- **Se conectan solos**: cada caja o luz de pared baja (o sube) en vertical al canal que pasa por encima (o por
+  debajo) en la misma cara. Cada luz de techo va por el techo hasta el canal más cercano de su ambiente; con
+  `desde` se elige otro punto de la pared o se encadena desde otra luz (los colgantes de la cumbrera). El
+  tablero se conecta a los recorridos que arrancan sobre su borde de arriba.
+- **Cables**: cada circuito sale del tablero por el camino más corto. En las luces, la fase va a las teclas, el
+  neutro y la tierra a las luces y de cada tecla sale un retorno. En una T sin caja los cables no se empalman
+  adentro del canal: bajan a la caja y vuelven a subir, salen con otro cable desde la última caja o, si no
+  queda otra, se pone una caja de paso (se cuenta y se dibuja).
+- **Canal**: en cada tramo va la medida más chica en la que entran los cables que pasan por ahí. Los
+  accesorios (ángulos internos, externos y planos, T, uniones, tapas finales, reducciones) salen de la forma
+  de la red. Si algo no cierra (un punto sin canal arriba, un tramo que no da abasto) aparece en
+  **Pendientes → Advertencias**.
+
+```ts
+// Toma doble a 0,35 en la pared del comedor (la que da a la cocina), en z = 0,11 (al lado del calefactor)
+{ id: 't-comedor', nombre: 'Tomas del comedor', pared: 'p-cocina-patio', ambiente: 'cocina', en: 0.11,
+  altura: 0.35, modulos: [{ tipo: 'toma', circuito: 'c2' }, { tipo: 'toma', circuito: 'c2' }] },
+// Plafón en el techo del lavadero (llega solo desde el canal más cercano)
+{ id: 'l-lavadero', nombre: 'Plafón del lavadero', tipo: 'plafon', circuito: 'c1', ambiente: 'lavadero', techo: [4.5, 4.1] },
+```
 
 ## Distribución: qué sale del croquis y qué es supuesto
 
@@ -275,6 +357,13 @@ Del croquis (11/11/2026):
   izquierda la puerta al cuarto 1 y a su derecha la del lavadero, como habías descrito.
 - Lavadero (1,70 × 1,40) con puerta al patio; baño (2,00 × 1,90) al que se entra desde el lavadero, con
   ventana al patio. Al cuarto 2 se entra desde el cuarto 1 y tiene ventana al patio.
+- **Frente y pasillo de entrada** (croquis del 12/11/2026): se llega por un pasillo de 2,40 × 20 m con muros de
+  2,00 m y un portón en la calle. Arranca en la línea de la pared de abajo de la cocina, con su borde 1,00 m
+  hacia afuera del frente. Entre el pasillo y la casa queda el **frente**, cerrado atrás en la línea del fondo de
+  los cuartos. Son ambientes de afuera (`exterior: true`) y sus muros llevan `cerco: true`: no cuentan para
+  encuadrar la casa ni tienen vista de su cara de afuera.
+- En el patio, contra la medianera y el baño, la **garita del termotanque eléctrico**; en la pared del patio de
+  la cocina, el **calefactor** a gas (tiro balanceado). La puerta balcón es **corrediza** (confirmado).
 - Puertas (confirmado): cocina → cuarto 1 granero, colgada del lado de la cocina y que corre hacia el
   frente; cocina → lavadero plegadiza de acordeón que se junta del lado de la heladera; cuarto 1 → cuarto 2
   plegable; lavadero → baño abre hacia el lavadero con las bisagras del lado de la pared de abajo;
@@ -347,3 +436,9 @@ Supuestos (todos marcados `todo`):
   `node_modules/.vite` y el servidor respondía 504. El build de producción no se ve afectado.
 - Las etiquetas de los ambientes son DOM común, posicionado en cada cuadro desde la escena
   (`src/escena/Etiquetas.tsx`).
+- **Luces sin "atravesar" paredes**: las luces de three.js no tienen sombras baratas y ponerle sombra a cada
+  lámpara es muy pesado. En cambio, `src/escena/zonasLuz.ts` parchea el shader de three.js (r187) para que
+  cada luz alumbre solo dentro de una caja (su ambiente, la oficina, el patio o el frente) y sume ahí un poco
+  de luz pareja de rebote. Si al actualizar three.js cambia ese trozo de shader, avisa en la consola y las
+  luces siguen andando, solo que sin limitarse. Las fuentes de luz están siempre montadas (apagadas valen 0)
+  para que no se recompilen los materiales.

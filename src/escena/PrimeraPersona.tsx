@@ -21,9 +21,10 @@ export function PrimeraPersona() {
   const gl = useThree((s) => s.gl);
   const { casa, paredes } = useCasaResuelta();
   const inicio = useEstado((s) => s.inicioRecorrido);
+  const cerradas = useEstado((s) => s.puertasCerradas);
   const obstaculos = useMemo(
-    () => construirObstaculos(paredes, casa.entrepisos, casa.muebles),
-    [paredes, casa.entrepisos, casa.muebles],
+    () => construirObstaculos(paredes, casa.entrepisos, casa.muebles, cerradas),
+    [paredes, casa.entrepisos, casa.muebles, cerradas],
   );
   // piso = altura de lo que se pisa; y = altura de los ojos (suavizada).
   const st = useRef({ x: 0, y: ALTURA_OJOS, z: 0, piso: 0, yaw: 0, pitch: -0.05 });

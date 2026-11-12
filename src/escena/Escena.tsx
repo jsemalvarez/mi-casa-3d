@@ -3,8 +3,10 @@ import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { alturaCorte, etiquetasVisibles, nivelAlto, useCasaResuelta, useEstado } from '../estado';
 import { Camaras } from './Camaras';
+import { Electrica } from './Electrica';
 import { Entrepisos } from './Entrepisos';
 import { Escaleras } from './Escaleras';
+import { Luces } from './Luces';
 import { ProyectorEtiquetas } from './Etiquetas';
 import { Muebles } from './Muebles';
 import { Paredes } from './Paredes';
@@ -19,7 +21,6 @@ export function Escena() {
         gl={{ antialias: true, toneMapping: THREE.NeutralToneMapping }}
         onContextMenu={(e) => e.preventDefault()}
       >
-        <color attach="background" args={['#cdd7de']} />
         <Contenido />
         <Camaras />
       </Canvas>
@@ -46,35 +47,48 @@ function Contenido() {
       <Entrepisos corte={corte} />
       <Escaleras corte={corte} />
       <Muebles corte={corte} />
+      <Electrica />
+      <Luces />
       {etiquetasVisibles(modo, etiquetas) && <ProyectorEtiquetas />}
     </>
   );
 }
 
+/** Cielo y sol de día; de noche, cielo oscuro y una luz de luna muy tenue. */
+const CIELO = {
+  dia: { fondo: '#cdd7de', cielo: '#ffffff', suelo: '#d9d2c3', hemisferio: 1.6, ambiente: 0.5, sol: '#ffffff', intensidadSol: 1.8 },
+  noche: { fondo: '#0b111b', cielo: '#4a5a7a', suelo: '#16181d', hemisferio: 0.2, ambiente: 0.03, sol: '#9fb3d9', intensidadSol: 0.22 },
+};
+
 /**
- * Luz provisoria de la fase 1 (cielo + sol fijo). En la fase 2 se reemplaza por
- * las luces reales de cada ambiente y el modo día/noche.
+ * Luz general: cielo, sol (o luna) y, en las vistas de pared y el recorrido, una luz suave desde la
+ * cámara. Las vistas de pared se ven siempre de día: son para leer medidas y colores.
  */
 function Iluminacion() {
   const { limites } = useCasaResuelta();
-  // En planta y en las vistas de frente las sombras del sol ensucian la lectura.
-  const sombras = useEstado((s) => s.modo === '3d' || s.modo === 'recorrido');
+  const modo = useEstado((s) => s.modo);
+  const noche = useEstado((s) => s.noche) && modo !== 'alzado';
+  const c = noche ? CIELO.noche : CIELO.dia;
+  // En planta y en las vistas de frente las sombras del sol ensucian la lectura; de noche no hay sol.
+  const sombras = !noche && (modo === '3d' || modo === 'recorrido');
   const cx = (limites.x0 + limites.x1) / 2;
   const cz = (limites.z0 + limites.z1) / 2;
   const r = Math.hypot(limites.x1 - limites.x0, limites.z1 - limites.z0) / 2 + 2;
   const [objetivo] = useState(() => new THREE.Object3D());
-  const modo = useEstado((s) => s.modo);
+  const relleno = modo === 'alzado' ? 1.3 : modo === 'recorrido' && !noche ? 0.6 : 0;
   return (
     <>
-      <hemisphereLight args={['#ffffff', '#d9d2c3', 1.6]} />
-      <ambientLight intensity={0.5} />
-      {(modo === 'alzado' || modo === 'recorrido') && <LuzCamara intensidad={modo === 'alzado' ? 1.3 : 0.6} />}
+      <color attach="background" args={[c.fondo]} />
+      <hemisphereLight args={[c.cielo, c.suelo, c.hemisferio]} />
+      <ambientLight intensity={c.ambiente} />
+      {relleno > 0 && <LuzCamara intensidad={relleno} />}
       {/* El objetivo del sol tiene que estar en la escena para que se actualice su posición. */}
       <primitive object={objetivo} position={[cx, 0, cz]} />
       <directionalLight
         target={objetivo}
         position={[cx - 7, 16, cz - 9]}
-        intensity={1.8}
+        color={c.sol}
+        intensity={c.intensidadSol}
         castShadow={sombras}
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}

@@ -11,11 +11,12 @@ export interface Obstaculo {
   y1: number;
 }
 
-/** Paredes (los huecos de puertas quedan libres), barandas de entrepisos y muebles. */
+/** Paredes (los huecos de las puertas abiertas quedan libres), barandas de entrepisos y muebles. */
 export function construirObstaculos(
   paredes: ParedResuelta[],
   entrepisos: Entrepiso[],
   muebles: Mueble[] = [],
+  puertasCerradas: Record<string, true> = {},
 ): Obstaculo[] {
   const lista: Obstaculo[] = [];
   for (const p of paredes) {
@@ -29,9 +30,16 @@ export function construirObstaculos(
         y1: pz.y1,
       });
     }
-    // Las puertas balcón están cerradas (vidrio): no se atraviesan.
+    // Las puertas balcón están cerradas (vidrio) y las puertas cerradas tampoco se atraviesan.
     for (const ab of p.aberturas) {
-      if (ab.tipo !== 'puerta-balcon') continue;
+      // Corrediza abierta: solo tapa la mitad de la hoja fija.
+      if (ab.tipo === 'puerta-balcon' && ab.hoja?.tipo === 'corrediza' && !puertasCerradas[ab.id]) {
+        const mitad = ab.ancho / 2;
+        const u = ab.hoja.fija === 'a' ? ab.desde + mitad / 2 : ab.desde + ab.ancho - mitad / 2;
+        lista.push({ centro: add(p.a, mul(p.dir, u)), dir: p.dir, mu: mitad / 2, mv: p.espesor / 2, y0: 0, y1: ab.alto });
+        continue;
+      }
+      if (ab.tipo !== 'puerta-balcon' && !(ab.tipo === 'puerta' && puertasCerradas[ab.id])) continue;
       lista.push({
         centro: add(p.a, mul(p.dir, ab.desde + ab.ancho / 2)),
         dir: p.dir,

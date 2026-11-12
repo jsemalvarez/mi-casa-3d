@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { useCasaResuelta, useEstado, type Modo } from '../estado';
-import { juntarPendientes } from '../modelo/pendientes';
+import { idsLuces, idsPuertas, useCasaResuelta, useEstado, usePendientes, type Modo } from '../estado';
 import { Icono } from './Iconos';
 import { Joystick } from './Joystick';
+import { PanelMateriales } from './PanelMateriales';
 import { PanelPendientes } from './PanelPendientes';
 
 export function Interfaz() {
@@ -17,11 +17,16 @@ export function Interfaz() {
             <small>Base · distribución provisoria</small>
           </div>
         </div>
-        <BotonPendientes />
+        <div className="acciones">
+          <BotonMateriales />
+          <BotonPendientes />
+        </div>
       </header>
 
       {modo === 'alzado' && <TituloVista />}
       {modo === 'planta' && <Brujula />}
+      <ControlesEscena />
+
       {modo === 'recorrido' && (
         <>
           <AyudaRecorrido />
@@ -35,6 +40,7 @@ export function Interfaz() {
       </footer>
 
       <PanelPendientes />
+      <PanelMateriales />
     </>
   );
 }
@@ -97,6 +103,7 @@ function BarraContexto() {
         <button className={`chip${s.etiquetas ? ' activo' : ''}`} onClick={s.alternarEtiquetas}>
           <Icono nombre="etiqueta" /> Nombres
         </button>
+        <BotonElectrica />
         <button className="chip" onClick={s.recentrar}>
           <Icono nombre="centrar" /> Centrar
         </button>
@@ -132,6 +139,7 @@ function BarraContexto() {
         <button className="chip icono" onClick={() => ir(1)} aria-label="Pared siguiente">
           <Icono nombre="adelante" />
         </button>
+        <BotonElectrica />
       </div>
     );
   }
@@ -200,18 +208,94 @@ function AyudaRecorrido() {
   return (
     <div className="ayuda">
       {tactil
-        ? 'Arrastrá para mirar · joystick para caminar'
-        : 'Arrastrá para mirar · W A S D o flechas para caminar · Shift corre'}
+        ? 'Arrastrá para mirar · joystick para caminar · tocá puertas, luces y teclas'
+        : 'Arrastrá para mirar · W A S D o flechas para caminar · Shift corre · clic en puertas, luces y teclas'}
     </div>
   );
 }
 
-function BotonPendientes() {
+function BotonElectrica() {
+  const electrica = useEstado((s) => s.electrica);
+  const alternar = useEstado((s) => s.alternarElectrica);
+  return (
+    <button
+      className={`chip${electrica ? ' activo' : ''}`}
+      onClick={alternar}
+      title="Muestra u oculta el cable canal, las cajas y el tablero"
+    >
+      <Icono nombre="rayo" /> Eléctrica
+    </button>
+  );
+}
+
+/**
+ * Día o noche, todas las luces y todas las puertas. Cada puerta, luz o tecla también se puede
+ * tocar en la escena para cambiarla sola.
+ */
+function ControlesEscena() {
+  const noche = useEstado((s) => s.noche);
+  const alternarNoche = useEstado((s) => s.alternarNoche);
+  const prendidas = useEstado((s) => Object.keys(s.lucesPrendidas).length);
+  const alternarLuces = useEstado((s) => s.alternarTodasLasLuces);
+  const cerradas = useEstado((s) => s.puertasCerradas);
+  const alternarPuertas = useEstado((s) => s.alternarPuertas);
   const { casa } = useCasaResuelta();
-  const resuelta = useCasaResuelta();
+  const modo = useEstado((s) => s.modo);
+  const totalLuces = idsLuces().length;
+  const algunaAbierta = idsPuertas(casa).some((id) => !cerradas[id]);
+  return (
+    <div className="controles-escena" role="group" aria-label="Noche, luces y puertas">
+      {/* Las vistas de pared se ven siempre de día (son para leer medidas y colores). */}
+      {modo !== 'alzado' && (
+        <button
+          className={`chip${noche ? ' activo' : ''}`}
+          onClick={alternarNoche}
+          aria-pressed={noche}
+          title={noche ? 'Volver al día' : 'Ver de noche (si están todas apagadas, prende las luces)'}
+        >
+          <Icono nombre="luna" /> <span className="texto-largo">Noche</span>
+        </button>
+      )}
+      <button
+        className={`chip${prendidas ? ' activo' : ''}`}
+        onClick={alternarLuces}
+        aria-pressed={prendidas > 0}
+        title={(prendidas ? 'Apagar todas las luces' : 'Prender todas las luces') + '. Tocá una luz o una tecla para cambiarla sola.'}
+      >
+        <Icono nombre="foco" /> <span className="texto-largo">Luces</span>
+        <span className="contador">
+          {prendidas}/{totalLuces}
+        </span>
+      </button>
+      <button
+        className="chip"
+        onClick={alternarPuertas}
+        title={(algunaAbierta ? 'Cerrar todas las puertas' : 'Abrir todas las puertas') + '. Tocá una puerta para cambiarla sola.'}
+      >
+        <Icono nombre="puerta" /> <span className="texto-largo">{algunaAbierta ? 'Cerrar puertas' : 'Abrir puertas'}</span>
+      </button>
+    </div>
+  );
+}
+
+function BotonMateriales() {
   const setPanel = useEstado((s) => s.setPanel);
   const panel = useEstado((s) => s.panel);
-  const n = useMemo(() => juntarPendientes(casa, resuelta).length + resuelta.advertencias.length, [casa, resuelta]);
+  return (
+    <button
+      className={`chip pendientes${panel === 'materiales' ? ' activo' : ''}`}
+      onClick={() => setPanel(panel === 'materiales' ? null : 'materiales')}
+    >
+      <Icono nombre="lista" /> <span className="texto-largo">Materiales</span>
+    </button>
+  );
+}
+
+function BotonPendientes() {
+  const { lista, advertencias } = usePendientes();
+  const setPanel = useEstado((s) => s.setPanel);
+  const panel = useEstado((s) => s.panel);
+  const n = lista.length + advertencias.length;
   return (
     <button
       className={`chip pendientes${panel === 'pendientes' ? ' activo' : ''}`}

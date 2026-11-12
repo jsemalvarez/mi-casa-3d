@@ -80,6 +80,40 @@ const Z = {
 /** Cuánto sobresale la cocina hacia el frente respecto del cuarto 1 (cara contra cara). */
 export const ESCALON_FRENTE = X.frenteCuarto1 - X.frenteCocina; // 0,95 m con los datos actuales
 
+// ── Frente y pasillo de entrada ──────────────────────────────────────────────
+// Croquis del 12/11/2026: se llega por un pasillo de 2,40 m de ancho y 20 m de largo, con muros
+// de 2,00 m (confirmado) y un portón en la calle. Arranca a la altura de la pared de abajo de la
+// cocina y su borde del lado de la casa queda 1,00 m hacia afuera del frente de la cocina. Entre
+// el pasillo y la casa queda el frente (donde está la puerta de entrada), cerrado por el muro del
+// fondo, que sigue la línea de atrás de los cuartos.
+const CERCO = 0.15; // espesor de los muros del pasillo — TODO confirmar
+const ALTO_CERCO = 2.0; // (confirmado)
+/** Caras de afuera de la casa: frente de la cocina, frente del cuarto 1, pared de abajo y fondo. */
+const FACHADA_X = X.frenteCocina - e;
+const FACHADA_CUARTO1_X = X.frenteCuarto1 - e;
+const LATERAL_Z = Z.lateral + e;
+const FONDO_Z = Z.fondo - e;
+export const PASILLO = {
+  /** Cara interior del muro del lado de la casa y del otro lado (x). */
+  xCasa: FACHADA_X - 1.0,
+  xOtro: FACHADA_X - 1.0 - 2.4,
+  /** Dónde arranca (z de la cara de afuera de la pared de abajo de la cocina) y la línea de la calle. */
+  zInicio: LATERAL_Z,
+  zCalle: LATERAL_Z + 20,
+  espesor: CERCO,
+  alto: ALTO_CERCO,
+  /** Cara de afuera del frente de la cocina. */
+  fachadaX: FACHADA_X,
+};
+/** Ejes de los muros del frente y el pasillo. */
+const MURO = {
+  xOtro: PASILLO.xOtro - CERCO / 2,
+  xCasa: PASILLO.xCasa + CERCO / 2,
+  zFondo: FONDO_Z - CERCO / 2,
+  zLateral: LATERAL_Z + CERCO / 2,
+  zCalle: PASILLO.zCalle - CERCO / 2,
+};
+
 // ── Ayudas ───────────────────────────────────────────────────────────────────
 const rect = (x0: number, z0: number, x1: number, z1: number): Punto2[] => [
   [x0, z0],
@@ -224,6 +258,29 @@ const ambientes: Ambiente[] = [
     piso: { color: '#bdb6a8', descripcion: 'baldosas (TODO)' },
     todo: 'Terminación del piso del patio sin definir.',
   },
+  {
+    id: 'frente',
+    nombre: 'Frente',
+    exterior: true,
+    poligono: [
+      [PASILLO.xOtro, FONDO_Z],
+      [FACHADA_CUARTO1_X, FONDO_Z],
+      [FACHADA_CUARTO1_X, Z.cuartos - i],
+      [FACHADA_X, Z.cuartos - i],
+      [FACHADA_X, LATERAL_Z],
+      [PASILLO.xOtro, LATERAL_Z],
+    ],
+    piso: { color: '#a9a69d', descripcion: 'sin definir (TODO)' },
+    todo: 'Lo que queda entre el pasillo y la casa, cerrado atrás por un muro en la línea del fondo de los cuartos (así sale del croquis). ¿Qué piso tiene (pasto, cemento, baldosas)?',
+  },
+  {
+    id: 'pasillo',
+    nombre: 'Pasillo de entrada',
+    exterior: true,
+    poligono: rect(PASILLO.xOtro, PASILLO.zInicio, PASILLO.xCasa, PASILLO.zCalle - CERCO),
+    piso: { color: '#a9a69d', descripcion: 'sin definir (TODO)' },
+    todo: '2,40 × 20 m, según el croquis. ¿Qué piso tiene?',
+  },
 ];
 
 // ── Paredes ──────────────────────────────────────────────────────────────────
@@ -265,6 +322,29 @@ const paredes: Pared[] = [
   { id: 'p-patio-banio', a: [X.lavaderoBanio, Z.banio], b: [X.lavaderoBanio, Z.lavadero], espesor: I },
   { id: 'p-lavadero-banio', a: [X.lavaderoBanio, Z.lavadero], b: [X.lavaderoBanio, Z.lateral], espesor: I },
   { id: 'p-banio-patio', a: [X.lavaderoBanio, Z.banio], b: [X.medianera, Z.banio], espesor: I },
+  // Muros del frente y del pasillo de entrada (2,00 m de alto).
+  {
+    id: 'p-frente-fondo',
+    a: [MURO.xOtro, MURO.zFondo],
+    b: [FACHADA_CUARTO1_X, MURO.zFondo],
+    espesor: CERCO,
+    alto: ALTO_CERCO,
+    cerco: true,
+    todo: 'Muro del fondo del frente, en línea con el fondo de los cuartos (así sale del croquis). Espesor supuesto: 0,15.',
+  },
+  { id: 'p-frente-oeste', a: [MURO.xOtro, MURO.zFondo], b: [MURO.xOtro, PASILLO.zInicio], espesor: CERCO, alto: ALTO_CERCO, cerco: true },
+  { id: 'p-frente-lateral', a: [MURO.xCasa, MURO.zLateral], b: [FACHADA_X, MURO.zLateral], espesor: CERCO, alto: ALTO_CERCO, cerco: true },
+  {
+    id: 'p-pasillo-oeste',
+    a: [MURO.xOtro, PASILLO.zInicio],
+    b: [MURO.xOtro, MURO.zCalle],
+    espesor: CERCO,
+    alto: ALTO_CERCO,
+    cerco: true,
+    todo: 'Muros del pasillo: 2,00 de alto (confirmado); espesor supuesto 0,15.',
+  },
+  { id: 'p-pasillo-este', a: [MURO.xCasa, MURO.zLateral], b: [MURO.xCasa, MURO.zCalle], espesor: CERCO, alto: ALTO_CERCO, cerco: true },
+  { id: 'p-pasillo-calle', a: [MURO.xOtro, MURO.zCalle], b: [MURO.xCasa, MURO.zCalle], espesor: CERCO, alto: ALTO_CERCO, cerco: true },
 ];
 
 // ── Aberturas ────────────────────────────────────────────────────────────────
@@ -391,7 +471,9 @@ const aberturas: Abertura[] = [
     ancho: 1.8,
     alto: PUERTA,
     hojas: 2,
-    todo: MEDIR + ' En el dibujo mide casi 2 m: puse 1,80.',
+    // Corrediza (confirmado).
+    hoja: { tipo: 'corrediza', fija: 'a' },
+    todo: MEDIR + ' En el dibujo mide casi 2 m: puse 1,80. Supuse que queda fija la hoja del lado de los cuartos y corre la del lado del lavadero.',
   },
   {
     id: 'a-puerta-lavadero',
@@ -443,6 +525,19 @@ const aberturas: Abertura[] = [
     antepecho: 1.5,
     hojas: 1,
     todo: MEDIR + ' Alto y antepecho supuestos.',
+  },
+  // Pasillo de entrada
+  {
+    id: 'a-porton',
+    nombre: 'Portón de entrada',
+    pared: 'p-pasillo-calle',
+    tipo: 'puerta',
+    desde: CERCO / 2 + 0.1, // deja 10 cm de cada lado
+    ancho: 2.2,
+    alto: ALTO_CERCO,
+    hoja: { tipo: 'doble', abreHacia: 'izq' },
+    color: '#3f4448',
+    todo: 'Supuse un portón de dos hojas que abren hacia adentro, de 2,20 × 2,00, gris oscuro. ¿Cómo es (de abrir, corredizo, con puerta de paso)?',
   },
 ];
 
@@ -700,6 +795,35 @@ const muebles: Mueble[] = [
     elevacion: 1.3,
     giro: 270,
     color: BLANCO,
+  },
+  {
+    // Croquis del 12/11/2026: en la pared del patio, a la izquierda de la puerta balcón, abajo.
+    id: 'm-calefactor',
+    nombre: 'Calefactor',
+    tipo: 'caja',
+    ambiente: 'cocina',
+    centro: [COCINA[0] - 0.1, 0.5],
+    ancho: 0.55,
+    profundidad: 0.2,
+    alto: 0.7,
+    elevacion: 0.1,
+    giro: 90,
+    color: BLANCO,
+    todo: 'A gas, de tiro balanceado (confirmado): sale por la pared al patio. Medidas y posición estimadas del croquis.',
+  },
+  {
+    // Croquis del 12/11/2026: en la esquina del patio, contra la medianera y la pared del baño.
+    id: 'm-garita-termotanque',
+    nombre: 'Garita del termotanque',
+    tipo: 'caja',
+    ambiente: 'patio',
+    centro: [X.medianera - e - 0.475, Z.banio - i - 0.45],
+    ancho: 0.95,
+    profundidad: 0.9,
+    alto: 1.45,
+    giro: 180,
+    color: '#d9d4ca',
+    todo: 'Medidas estimadas del croquis (0,95 × 0,90). Le puse 1,45 de alto para que no tape la ventana del baño, que empieza a 1,50. ¿Cuánto mide y de qué es?',
   },
   {
     id: 'm-rack-tv',

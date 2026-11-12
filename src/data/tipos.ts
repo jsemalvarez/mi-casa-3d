@@ -96,6 +96,11 @@ export interface Pared extends ConTodo {
   colorIzq?: string;
   /** Color de la cara derecha (mirando de a → b). Pisa el color del ambiente. */
   colorDer?: string;
+  /**
+   * Muro del terreno (cerco, muros del pasillo): no cuenta para encuadrar la casa y su cara de
+   * afuera (la que no da a ningún ambiente) no tiene vista de frente.
+   */
+  cerco?: boolean;
 }
 
 export type TipoAbertura = 'puerta' | 'puerta-balcon' | 'ventana' | 'vano';
@@ -104,7 +109,7 @@ export type TipoAbertura = 'puerta' | 'puerta-balcon' | 'ventana' | 'vano';
  * Cómo abre una puerta. "Izquierda/derecha" son mirando la pared de a → b; los extremos
  * 'a' / 'b' son los bordes de la abertura más cercanos al punto `a` o `b` de la pared.
  */
-export type HojaPuerta = HojaBatiente | HojaPlegable | HojaGranero;
+export type HojaPuerta = HojaBatiente | HojaPlegable | HojaGranero | HojaDoble | HojaCorrediza;
 
 /** Puerta común de abrir (con bisagras). Es el tipo por defecto si no se indica `tipo`. */
 export interface HojaBatiente {
@@ -120,6 +125,20 @@ export interface HojaPlegable {
   tipo: 'plegable';
   /** Extremo hacia el que se junta al abrir. */
   juntaHacia: 'a' | 'b';
+}
+
+/** De dos hojas de abrir (un portón), con bisagras en los dos costados. */
+export interface HojaDoble {
+  tipo: 'doble';
+  /** Lado de la pared hacia el que abren. */
+  abreHacia: 'izq' | 'der';
+}
+
+/** Corrediza de dos hojas vidriadas (puerta balcón): una queda fija y la otra corre por delante. */
+export interface HojaCorrediza {
+  tipo: 'corrediza';
+  /** Extremo de la hoja que no se mueve. */
+  fija: 'a' | 'b';
 }
 
 /** Puerta granero: corre por fuera de la pared, colgada de un riel arriba del vano. */
@@ -146,7 +165,7 @@ export interface Abertura extends ConTodo {
   alto: number;
   /** Altura del borde inferior sobre el piso. 0 (o nada) en puertas y vanos. */
   antepecho?: number;
-  /** Solo puertas: de abrir, plegable o granero. */
+  /** Puertas: de abrir, de dos hojas, plegable o granero. Puertas balcón: corrediza. */
   hoja?: HojaPuerta;
   /** Solo puertas: color de la hoja. Si falta, usa `colores.puerta`. */
   color?: string;
@@ -283,6 +302,150 @@ export interface Mueble extends ConTodo {
    * positivo = hacia la derecha mirando la mesada de frente.
    */
   piletas?: { desplazamiento: number; ancho: number; profundidad: number }[];
+}
+
+// ── Instalación eléctrica (a la vista, con cable canal) ──────────────────────
+
+/** Punto en el espacio: [x, y, z] en metros (y = altura sobre el piso de planta baja). */
+export type Punto3 = [number, number, number];
+
+export type TipoCircuito = 'IUG' | 'TUG' | 'TUE';
+
+/** Circuito que sale del tablero, con su térmica. */
+export interface Circuito extends ConTodo {
+  id: string;
+  nombre: string;
+  /** IUG = iluminación, TUG = tomas generales, TUE = tomas de uso especial. */
+  tipo: TipoCircuito;
+  /** Sección de fase y neutro (mm²). La tierra va siempre en `seccionTierra` de la instalación. */
+  seccion: number;
+  /** Termomagnética bipolar (A). */
+  termica: number;
+  /** Color para dibujarlo. */
+  color: string;
+}
+
+/**
+ * Ubicación sobre la cara de una pared. `en` es la coordenada del centro a lo largo de la pared:
+ * x si la pared corre en X, z si corre en Z (como las aberturas con `desdeX` / `desdeZ`).
+ */
+export interface EnPared {
+  pared: string;
+  /** Ambiente al que da la cara (de ahí sale el canal). */
+  ambiente: string;
+  en: number;
+  /** Altura del centro (m). Con `entrepiso`, medida desde el piso del entrepiso. */
+  altura: number;
+  /** id de un entrepiso si el punto está arriba (la oficina): las alturas se miden desde su piso. */
+  entrepiso?: string;
+  /**
+   * El punto está en la otra cara de la pared (afuera o en el patio): el canal va por la cara de
+   * `ambiente` y los cables cruzan la pared por un agujero.
+   */
+  atraviesa?: boolean;
+}
+
+export type Modulo =
+  | { tipo: 'toma'; circuito: string; uso?: string; exterior?: boolean }
+  | { tipo: 'tecla'; luces: string[] }
+  /** Llave de combinación: prende lo mismo desde dos lugares. `con` = id de la otra caja. */
+  | { tipo: 'combinacion'; luces: string[]; con: string };
+
+/** Caja de pared con tomas y/o teclas (cada toma o tecla es un módulo). */
+export interface CajaElectrica extends EnPared, ConTodo {
+  id: string;
+  nombre: string;
+  modulos: Modulo[];
+}
+
+export type TipoLuz = 'colgante' | 'plafon' | 'aplique' | 'aplique-exterior' | 'tira-led';
+
+export interface Luz extends ConTodo {
+  id: string;
+  nombre: string;
+  tipo: TipoLuz;
+  circuito: string;
+  /** En el techo: posición en planta (la altura sale del techo o del entrepiso de arriba). */
+  techo?: Punto2;
+  /** En la pared (apliques, tiras de LED). */
+  pared?: EnPared;
+  /** Ambiente (para los techos). */
+  ambiente: string;
+  /** id de un entrepiso si la luz está arriba (la oficina). */
+  entrepiso?: string;
+  /**
+   * De dónde sale el canal que llega a una luz de techo: id de otra luz (van en cadena, p. ej. por
+   * la viga de la cumbrera) o un punto en planta sobre la cara de una pared con canal. Si falta, el
+   * tramo de canal más cercano del mismo ambiente.
+   */
+  desde?: string | Punto2;
+  /** Tiras de LED: largo (m). */
+  largo?: number;
+  /** Colgantes: cuánto cuelga la pantalla debajo de la boca (m). */
+  cuelga?: number;
+}
+
+/**
+ * Recorrido de cable canal: polilínea apoyada sobre las caras de las paredes, con los puntos en
+ * [x, y, z]. Un tramo que cruza una pared (de una cara a la otra) es un agujero, no lleva canal.
+ * Las cajas y luces se conectan solas: bajan (o suben) en vertical hasta el canal que pasa por
+ * encima (o por debajo) en la misma cara, y las luces de techo van por el techo hasta el canal
+ * más cercano.
+ */
+export interface RecorridoCanal extends ConTodo {
+  id: string;
+  nombre?: string;
+  puntos: Punto3[];
+}
+
+/** Medida de cable canal disponible: se usa la más chica en la que entran los cables. */
+export interface MedidaCanal {
+  nombre: string;
+  /** Ancho sobre la pared y alto (m), para dibujarlo. */
+  ancho: number;
+  alto: number;
+  /** Sección ocupable por cables (mm²), ya con el margen de llenado. */
+  capacidad: number;
+}
+
+export interface Tablero extends EnPared, ConTodo {
+  id: string;
+  nombre: string;
+  /** Medida exterior: ancho y alto (m). */
+  ancho: number;
+  alto: number;
+  /** Cantidad de módulos DIN del gabinete. */
+  modulos: number;
+}
+
+/** Medidor de la distribuidora y línea principal: del medidor al tablero. */
+export interface LineaPrincipal extends ConTodo {
+  /** Dónde está el medidor (en planta, fuera de la casa) y a qué altura. */
+  medidor: { posicion: Punto2; altura: number; todo?: string };
+  /** Recorrido en planta, desde el medidor hasta la pared del tablero (por afuera). */
+  recorrido: Punto2[];
+  /** true: enterrada en caño, a `profundidad`. false: en caño por pared, a ras del piso. */
+  enterrada: boolean;
+  profundidad: number;
+  /** Sección de los dos conductores (fase y neutro), en mm². */
+  seccion: number;
+}
+
+export interface Instalacion {
+  tablero: Tablero;
+  /** Si falta, el cómputo deja la línea principal "a definir". */
+  lineaPrincipal?: LineaPrincipal;
+  circuitos: Circuito[];
+  luces: Luz[];
+  cajas: CajaElectrica[];
+  canales: RecorridoCanal[];
+  medidas: MedidaCanal[];
+  /** Sección del cable de tierra (verde y amarillo), igual en todos los circuitos (mm²). */
+  seccionTierra: number;
+  /** Diferencial (A) del tablero. */
+  diferencial: { amperes: number; sensibilidad: number };
+  /** Pendientes generales de la instalación. */
+  pendientes: string[];
 }
 
 export interface Colores {
