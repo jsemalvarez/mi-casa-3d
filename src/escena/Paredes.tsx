@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
+import * as THREE from 'three';
+import type { Punto2 } from '../data/tipos';
 import { colorCara, type ParedResuelta } from '../modelo/geometria';
+import { recortar } from '../modelo/techos';
 import { useCasaResuelta } from '../estado';
+import { extruir } from './extruir';
 import { mate } from './materiales';
 import { Abertura3D } from './Aberturas';
 
@@ -59,9 +63,38 @@ function Pared3D({ p, corte, plano }: { p: ParedResuelta; corte: number; plano: 
           </mesh>
         );
       })}
+      {p.remate && corte > p.alto && (
+        <Remate poli={p.remate} espesor={p.espesor} corte={corte} materiales={[mats.izq, mats.der, mats.corte]} id={p.pared.id} />
+      )}
       {p.aberturas.map((ab) => (
         <Abertura3D key={ab.id} ab={ab} espesor={p.espesor} corte={corte} plano={plano} />
       ))}
     </group>
   );
+}
+
+/** Hastial: la pared sube hasta el techo inclinado (cortado a la altura de la vista). */
+function Remate({
+  poli,
+  espesor,
+  corte,
+  materiales,
+  id,
+}: {
+  poli: Punto2[];
+  espesor: number;
+  corte: number;
+  materiales: THREE.Material[];
+  id: string;
+}) {
+  const geo = useMemo(() => {
+    const recortado = Number.isFinite(corte) ? recortar(poli, ([, y]) => corte - y) : poli;
+    if (recortado.length < 3) return null;
+    const g = extruir(new THREE.Shape(recortado.map(([u, y]) => new THREE.Vector2(u, y))), espesor);
+    g.translate(0, 0, -espesor / 2);
+    return g;
+  }, [poli, espesor, corte]);
+  if (!geo) return null;
+  // Tapa de z = 0 → cara izquierda (−Z local); la otra → derecha; costados → color de corte.
+  return <mesh geometry={geo} material={materiales} castShadow receiveShadow userData={{ pared: id }} />;
 }

@@ -4,6 +4,7 @@
  * hay a cada lado de cada pared y las "vistas de frente" de cada pared.
  */
 import type { Abertura, Ambiente, Casa, Pared, Punto2 } from '../data/tipos';
+import { alturaMaximaTecho, remateHastaTecho, resolverTecho, type TechoResuelto } from './techos';
 
 const EPS = 1e-3;
 
@@ -105,6 +106,11 @@ export interface ParedResuelta {
   aberturas: Abertura[];
   /** Piezas de muro a altura completa (sin corte). */
   piezas: Pieza[];
+  /**
+   * Hastial: lo que sube por encima de `alto` hasta un techo inclinado, como polígono en
+   * coordenadas locales [u, y]. `null` si la pared no queda debajo de un techo inclinado.
+   */
+  remate: Punto2[] | null;
 }
 
 export interface VistaPared {
@@ -130,6 +136,8 @@ export interface CasaResuelta {
   casa: Casa;
   paredes: ParedResuelta[];
   vistas: VistaPared[];
+  /** Techos inclinados de los ambientes que los tienen. */
+  techos: TechoResuelto[];
   /** Límites en planta de todo lo construido (paredes incluidas). */
   limites: { x0: number; x1: number; z0: number; z1: number };
   advertencias: string[];
@@ -256,6 +264,20 @@ export function resolverCasa(casa: Casa): CasaResuelta {
   const esInterior = (id: string | null) =>
     !!id && !casa.ambientes.find((a) => a.id === id)?.exterior;
 
+  // Techos inclinados
+  const techos: TechoResuelto[] = [];
+  for (const amb of casa.ambientes) {
+    const t = resolverTecho(amb);
+    if (!t) continue;
+    if (t.techo.alturaCumbrera < t.techo.alturaBorde) {
+      advertencias.push(`El techo de "${amb.id}" tiene la cumbrera más baja que los bordes.`);
+    }
+    if (t.faldones.length === 0) {
+      advertencias.push(`La cumbrera del techo de "${amb.id}" queda fuera del ambiente.`);
+    }
+    techos.push(t);
+  }
+
   // Paredes
   const paredes: ParedResuelta[] = casa.paredes.map((pared, idx) => {
     const v = sub(pared.b, pared.a);
@@ -301,6 +323,12 @@ export function resolverCasa(casa: Casa): CasaResuelta {
     if (esInterior(izq) && izq === der) {
       advertencias.push(`La pared "${pared.id}" tiene el mismo ambiente a los dos lados.`);
     }
+    // Si da a un ambiente con techo inclinado, sube hasta el techo (el más alto si son dos).
+    let remate: Punto2[] | null = null;
+    for (const t of techos.filter((t) => t.ambiente === izq || t.ambiente === der)) {
+      const r = remateHastaTecho(t, pared.a, dir, -extInicio, largo + extFin, alto);
+      if (r && (!remate || Math.max(...r.map((q) => q[1])) > Math.max(...remate.map((q) => q[1])))) remate = r;
+    }
     return {
       pared,
       a: pared.a,
@@ -317,6 +345,7 @@ export function resolverCasa(casa: Casa): CasaResuelta {
       vistaDer: '',
       aberturas: propias,
       piezas: calcularPiezas(-extInicio, largo + extFin, alto, propias),
+      remate,
     };
   });
 
@@ -352,12 +381,13 @@ export function resolverCasa(casa: Casa): CasaResuelta {
     if (g.caras.length === 0) continue;
     const n = g.normal;
     const t: Punto2 = [n[1], -n[0]]; // derecha en pantalla mirando hacia la pared
-    // Alto de la vista: el techo del ambiente si es interior; si no, la pared más alta.
+    // Alto de la vista: el techo del ambiente si es interior (la cumbrera si es a dos aguas);
+    // si no, la pared más alta.
     const ambGrupo = g.ambiente ? casa.ambientes.find((a) => a.id === g.ambiente) : undefined;
     const alto =
       ambGrupo && !ambGrupo.exterior
-        ? (ambGrupo.alturaTecho ?? H)
-        : Math.max(...g.caras.map((c) => c.p.alto));
+        ? alturaMaximaTecho(ambGrupo, H)
+        : Math.max(...g.caras.map((c) => Math.max(c.p.alto, ...(c.p.remate ?? []).map((q) => q[1]))));
     let t0: number;
     let t1: number;
     let sObjetivo: number;
@@ -433,7 +463,7 @@ export function resolverCasa(casa: Casa): CasaResuelta {
   const ordenCard = (v: VistaPared) => CARDINALES.indexOf((v.id.split(':')[1] ?? '').replace(/-\d+$/, ''));
   vistas.sort((p, q) => ordenAmb(p) - ordenAmb(q) || ordenCard(p) - ordenCard(q));
 
-  return { casa, paredes, vistas, limites, advertencias };
+  return { casa, paredes, vistas, techos, limites, advertencias };
 }
 
 /** Ambiente-nombre legible para un lado. */

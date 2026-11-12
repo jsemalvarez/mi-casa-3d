@@ -1,4 +1,4 @@
-import type { Abertura, Ambiente, Casa, Entrepiso, Escalera, Mueble, Pared, Punto2 } from './tipos';
+import type { Abertura, Ambiente, Casa, Entrepiso, Escalera, Mueble, Pared, Punto2, TechoInclinado } from './tipos';
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -87,10 +87,75 @@ const rect = (x0: number, z0: number, x1: number, z1: number): Punto2[] => [
   [x1, z1],
   [x0, z1],
 ];
+/** Metros con coma, para los textos de los pendientes. */
+const m = (n: number) => n.toFixed(2).replace('.', ',');
+
+// Caras interiores de los ambientes que se usan en varios lugares.
+const [C1_X0, C1_Z0] = [X.frenteCuarto1 + e, Z.fondo + e]; // esquina frente-fondo del cuarto 1
+const [C1_X1, C1_Z1] = [X.cuarto1Cuarto2 - i, Z.cuartos - i]; // esquina hacia cuarto 2 y cocina
+/** Caras interiores del cuarto 2, del lavadero y del baño. */
+const C2 = { x0: X.cuarto1Cuarto2 + i, x1: X.medianera - e, z0: Z.fondo + e, z1: Z.cuartos - i };
+const LAV = { x0: X.cocinaPatio + i, x1: X.lavaderoBanio - i, z0: Z.lavadero + i, z1: Z.lateral - e };
+const BAN = { x0: X.lavaderoBanio + i, x1: X.medianera - e, z0: Z.banio + i, z1: Z.lateral - e };
 
 const PISO_CERAMICO = { color: '#d9d3c7', descripcion: 'cerámico claro (TODO)' };
 const PISO_HUMEDO = { color: '#cdd3d5', descripcion: 'cerámico gris (TODO)' };
 const PISO_MADERA = { color: '#c4a17a', descripcion: 'madera / flotante (TODO)' };
+
+// ── Techos de madera ─────────────────────────────────────────────────────────
+// Tablas y vigas pintadas de blanco; la viga de la cumbrera de la cocina, marrón (fotos, 12/11/2026).
+const TECHO_BLANCO = '#fbfaf7';
+const VIGA_BLANCA = '#e9e7e1';
+const VIGA_MARRON = '#6b3a24';
+/** Sección supuesta de las vigas chicas: tirante de 3" × 6". */
+const SECCION_VIGA = { ancho: 0.075, alto: 0.15 };
+
+/**
+ * Techo de la cocina a dos aguas (12/11/2026): un faldón cae hacia la calle y el otro hacia el patio
+ * interno. La cumbrera va a lo largo, de la pared del cuarto 1 a la de abajo, con la viga marrón; de
+ * ella bajan 7 vigas chicas blancas por lado hasta el frente y hasta la pared del patio.
+ */
+const TECHO_COCINA: TechoInclinado = {
+  cumbrera: [
+    [COCINA[0] / 2, 0],
+    [COCINA[0] / 2, COCINA[1]],
+  ],
+  alturaBorde: H,
+  alturaCumbrera: 3.1,
+  viga: { ancho: 0.1, alto: 0.2, color: VIGA_MARRON },
+  vigasChicas: { porLado: 7, ...SECCION_VIGA, color: VIGA_BLANCA },
+};
+
+/**
+ * Los demás techos son a un agua (marcados en el plano, 12/11/2026): la oficina cae hacia el techo de
+ * la cocina, y el cuarto 2, el lavadero y el baño, hacia el patio interno. Las vigas van en el sentido
+ * de la caída. Pendiente supuesta para todos: 12 %.
+ */
+const PENDIENTE = 0.12;
+
+/**
+ * Techo a un agua de tablas y vigas blancas. `bordeAlto` va de esquina a esquina sobre la cara de la
+ * pared alta; cae hacia la pared baja, que está a `profundidad`, donde las tablas quedan a `alturaBaja`.
+ */
+function unAgua(
+  bordeAlto: [Punto2, Punto2],
+  profundidad: number,
+  alturaBaja: number,
+  vigas: number,
+  extremos?: 'separadas',
+): TechoInclinado {
+  return {
+    cumbrera: bordeAlto,
+    alturaBorde: alturaBaja,
+    alturaCumbrera: alturaBaja + PENDIENTE * profundidad,
+    vigasChicas: { porLado: vigas, ...SECCION_VIGA, color: VIGA_BLANCA, extremos },
+  };
+}
+
+const TECHO_OFICINA = unAgua([[C1_X0, C1_Z0], [C1_X1, C1_Z0]], C1_Z1 - C1_Z0, ALTO_CUARTO1, 5);
+const TECHO_CUARTO2 = unAgua([[C2.x0, C2.z0], [C2.x1, C2.z0]], C2.z1 - C2.z0, H, 5);
+const TECHO_LAVADERO = unAgua([[LAV.x0, LAV.z1], [LAV.x1, LAV.z1]], LAV.z1 - LAV.z0, H, 2, 'separadas');
+const TECHO_BANIO = unAgua([[BAN.x0, BAN.z1], [BAN.x1, BAN.z1]], BAN.z1 - BAN.z0, H, 4);
 
 // ── Ambientes ────────────────────────────────────────────────────────────────
 const ambientes: Ambiente[] = [
@@ -99,39 +164,50 @@ const ambientes: Ambiente[] = [
     nombre: 'Cocina-comedor',
     poligono: rect(0, 0, COCINA[0], COCINA[1]),
     piso: PISO_CERAMICO,
+    techo: TECHO_COCINA,
     // Entrando por la puerta de calle, mirando hacia la puerta balcón.
     recorrido: { desde: [0.7, 2.8], mirarHacia: [3.5, 1.9] },
+    todo: 'Techo a dos aguas: supuse la cumbrera al medio, las tablas a 2,70 sobre el frente y la pared del patio y a 3,10 en la cumbrera. ¿Cuánto hay del piso a la parte de abajo de la viga marrón (supuesta 0,10 × 0,20)? Vigas chicas: 7 por lado, parejas de pared a pared.',
   },
   {
     id: 'cuarto1',
     nombre: 'Cuarto 1 (chicos)',
-    poligono: rect(X.frenteCuarto1 + e, Z.fondo + e, X.cuarto1Cuarto2 - i, Z.cuartos - i),
+    poligono: rect(C1_X0, C1_Z0, C1_X1, C1_Z1),
     piso: PISO_MADERA,
-    // Sube hasta el techo de la oficina; la oficina ocupa la parte del frente (ver `entrepisos`).
-    alturaTecho: ALTO_CUARTO1,
+    // Sube hasta el techo de la oficina (a un agua hacia la cocina); la oficina ocupa la parte del
+    // frente (ver `entrepisos`).
+    techo: TECHO_OFICINA,
     // Entrando desde la cocina, mirando hacia la cucheta.
     recorrido: { desde: [3.0, -0.6], mirarHacia: [1.2, -2.1] },
-    todo: 'Altura total 4,80 = 2,70 del cuarto + 0,10 del piso de madera (supuesto) + 2,00 de la oficina. ¿O el total es 4,70? Los 2,70: supuse que son hasta las tablas y que las vigas cuelgan debajo (a 2,55). ¿O son hasta abajo de las vigas?',
+    todo:
+      'Altura total 4,80 = 2,70 del cuarto + 0,10 del piso de madera (supuesto) + 2,00 de la oficina. ¿O el total es 4,70? Los 2,70: supuse que son hasta las tablas y que las vigas cuelgan debajo (a 2,55). ¿O son hasta abajo de las vigas? ' +
+      `Techo de la oficina a un agua hacia la cocina, con 5 vigas blancas: supuse los 2,00 contra la pared de la cocina y ${m(TECHO_OFICINA.alturaCumbrera - NIVEL_OFICINA)} contra el fondo (12 % de pendiente). ¿Cuánto mide de alto la oficina contra el fondo? ¿Tablas y vigas blancas?`,
   },
   {
     id: 'matrimonial',
     nombre: 'Cuarto 2 (matrimonial)',
-    poligono: rect(X.cuarto1Cuarto2 + i, Z.fondo + e, X.medianera - e, Z.cuartos - i),
+    poligono: rect(C2.x0, C2.z0, C2.x1, C2.z1),
     piso: PISO_MADERA,
+    techo: TECHO_CUARTO2,
     // Entrando desde el cuarto 1, mirando hacia la medianera.
     recorrido: { desde: [4.85, -0.6], mirarHacia: [7.3, -1.7] },
+    todo: `Techo a un agua hacia el patio, con 5 vigas: supuse 2,70 contra la pared del patio y ${m(TECHO_CUARTO2.alturaCumbrera)} contra el fondo (12 % de pendiente). ¿Cuánto mide de alto contra el fondo? ¿Tablas y vigas blancas?`,
   },
   {
     id: 'lavadero',
     nombre: 'Lavadero',
-    poligono: rect(X.cocinaPatio + i, Z.lavadero + i, X.lavaderoBanio - i, Z.lateral - e),
+    poligono: rect(LAV.x0, LAV.z0, LAV.x1, LAV.z1),
     piso: PISO_HUMEDO,
+    techo: TECHO_LAVADERO,
+    todo: `Techo a un agua hacia el patio, con 2 vigas (las puse separadas de las paredes, como en tu dibujo): supuse 2,70 contra el patio y ${m(TECHO_LAVADERO.alturaCumbrera)} contra la pared de abajo (12 % de pendiente). ¿Cuánto mide de alto? ¿Tablas y vigas blancas?`,
   },
   {
     id: 'banio',
     nombre: 'Baño',
-    poligono: rect(X.lavaderoBanio + i, Z.banio + i, X.medianera - e, Z.lateral - e),
+    poligono: rect(BAN.x0, BAN.z0, BAN.x1, BAN.z1),
     piso: PISO_HUMEDO,
+    techo: TECHO_BANIO,
+    todo: `Techo a un agua hacia el patio, con 4 vigas (la primera y la última contra las paredes): supuse 2,70 contra el patio y ${m(TECHO_BANIO.alturaCumbrera)} contra la pared de abajo (12 % de pendiente). ¿Cuánto mide de alto? ¿Tablas y vigas blancas?`,
   },
   {
     id: 'patio',
@@ -375,8 +451,6 @@ const aberturas: Abertura[] = [
 // del lado del frente por toda la profundidad (2,40). Los otros 1,40, del lado de las puertas,
 // son el hueco de la escalera, en L: sube contra la pared del cuarto 2, descansa en la esquina
 // del fondo y llega a la oficina contra la pared del fondo.
-const [C1_X0, C1_Z0] = [X.frenteCuarto1 + e, Z.fondo + e]; // esquina frente-fondo del cuarto 1
-const [C1_X1, C1_Z1] = [X.cuarto1Cuarto2 - i, Z.cuartos - i]; // esquina hacia cuarto 2 y cocina
 const OF_X1 = C1_X0 + 2.0; // borde libre de la oficina (con listones)
 
 const ESC = {
@@ -391,9 +465,9 @@ const DESC = { x0: C1_X1 - ESC.anchoTramo1, x1: C1_X1, z0: C1_Z0, z1: C1_Z0 + ES
 /**
  * Vigas de madera debajo de la oficina (foto del techo del cuarto 1, 12/11/2026): van de la pared de
  * la cocina a la del fondo, con las tablas del piso encima. Son cinco, parejas, desde la que está
- * contra la pared del frente hasta la del borde de los listones. Sección supuesta: tirante de 3" × 6".
+ * contra la pared del frente hasta la del borde de los listones. Blancas, como las tablas de abajo.
  */
-const VIGA = { cantidad: 5, ancho: 0.075, alto: 0.15 };
+const VIGA = { cantidad: 5, ...SECCION_VIGA };
 const VIGAS_X = Array.from(
   { length: VIGA.cantidad },
   (_, k) => C1_X0 + VIGA.ancho / 2 + (k * (OF_X1 - C1_X0 - VIGA.ancho)) / (VIGA.cantidad - 1),
@@ -408,6 +482,8 @@ const entrepisos: Entrepiso[] = [
     espesor: PISO_OFICINA,
     alturaLibre: ALTO_OFICINA,
     color: '#a98b67',
+    colorAbajo: TECHO_BLANCO, // techo del cuarto 1, pintado de blanco
+
     // Listones de piso a techo sobre el borde libre, menos donde llega la escalera.
     barandas: [
       [
@@ -424,7 +500,7 @@ const entrepisos: Entrepiso[] = [
       ]),
       ancho: VIGA.ancho,
       alto: VIGA.alto,
-      color: '#857867',
+      color: VIGA_BLANCA,
     },
     todo:
       'Ancho de la oficina (2,00) y posición de los listones según el croquis y las fotos. Vigas: cinco parejas según la foto; sección supuesta 0,075 × 0,15, colgando debajo de las tablas.',
@@ -497,8 +573,6 @@ const MESA = { centro: [1.8, 2.5] as Punto2, diametro: 0.9, salidaSillas: 0.02 }
 const SILLA_PIZZA = { radio: 0.43, ancho: 2 * 0.43 * Math.sin((40 * Math.PI) / 180) };
 /** Cucheta del cuarto 1: largo de la cama, profundidad y estante de la cabecera. */
 const CUCHETA = { largo: 2.0, prof: 0.95, estante: 0.3 };
-/** Caras interiores del cuarto 2. */
-const C2 = { x0: X.cuarto1Cuarto2 + i, x1: X.medianera - e, z0: Z.fondo + e, z1: Z.cuartos - i };
 /** z de cada puesto de la oficina (monitor y silla). */
 const PUESTOS_OFICINA = [-1.85, -1.05];
 
@@ -1025,7 +1099,7 @@ export const casa: Casa = {
   colores: {
     paredInterior: '#f3f1ec',
     paredExterior: '#e8e4dc',
-    techo: '#fbfaf7',
+    techo: TECHO_BLANCO,
     corte: '#3b4148',
     marco: '#d4d4d2',
     vidrio: '#9fc6dc',

@@ -33,12 +33,45 @@ export interface Ambiente extends ConTodo {
   exterior?: boolean;
   /** Altura de techo (m). Si falta, usa `casa.alturaTecho`. */
   alturaTecho?: number;
+  /** Techo inclinado (a dos aguas o a un agua). Si está, pisa a `alturaTecho` (techo plano). */
+  techo?: TechoInclinado;
   piso: { color: string; descripcion?: string };
   /** Color por defecto de todas las caras de pared que dan a este ambiente. */
   colorParedes?: string;
   colorTecho?: string;
   /** Punto de partida opcional para el recorrido en primera persona. */
   recorrido?: { desde: Punto2; mirarHacia: Punto2 };
+}
+
+/**
+ * Techo inclinado visto desde adentro: tablas sobre vigas chicas que bajan de la cumbrera (la línea
+ * más alta) hasta las paredes bajas. Las paredes que quedan debajo suben solas hasta el techo.
+ *
+ * - **A dos aguas**: la cumbrera pasa por adentro del ambiente y cae hacia los dos lados.
+ * - **A un agua**: la cumbrera va sobre la cara de la pared alta y cae hacia el lado del ambiente.
+ */
+export interface TechoInclinado {
+  /** Línea más alta en planta, de una pared a la otra. */
+  cumbrera: [Punto2, Punto2];
+  /** Altura de la cara de abajo de las tablas en la cumbrera (m). */
+  alturaCumbrera: number;
+  /** Altura de la cara de abajo de las tablas donde apoyan en las paredes bajas (m). */
+  alturaBorde: number;
+  /** Viga grande a lo largo de la cumbrera, debajo de las tablas. */
+  viga?: { ancho: number; alto: number; color: string };
+  /**
+   * Vigas chicas de cada faldón: perpendiculares a la cumbrera, de la cumbrera a la pared baja.
+   * `porLado` = cuántas tiene cada faldón (en un techo a un agua, el total).
+   * `extremos`: 'contra-paredes' (por defecto) = la primera y la última pegadas a las paredes;
+   * 'separadas' = todas a la misma distancia, con media distancia hasta cada pared.
+   */
+  vigasChicas?: {
+    porLado: number;
+    ancho: number;
+    alto: number;
+    color: string;
+    extremos?: 'contra-paredes' | 'separadas';
+  };
 }
 
 /**
@@ -134,6 +167,8 @@ export interface Entrepiso extends ConTodo {
   nivel: number;
   espesor: number;
   color: string;
+  /** Color de la cara de abajo (el techo del ambiente de abajo). Si falta, `color`. */
+  colorAbajo?: string;
   /** Altura libre arriba (m), para las etiquetas y la vista "Oficina". */
   alturaLibre?: number;
   /** Postes que bajan hasta el piso, en planta. */

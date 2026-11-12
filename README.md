@@ -89,6 +89,7 @@ src/
     escenarios/     ← (fase 5) variantes que guardan solo lo que cambia
   modelo/
     geometria.ts    ← uniones de paredes, piezas alrededor de aberturas, vistas de frente
+    techos.ts       ← techos inclinados: faldones, alturas y hastiales
     colisiones.ts   ← choques del recorrido
     pendientes.ts   ← junta los `todo` para el panel
   escena/           ← componentes 3D (solo dibujan lo que dicen los datos)
@@ -102,10 +103,10 @@ Definido en [`src/data/tipos.ts`](src/data/tipos.ts). La casa ([`src/data/casa.t
 
 | Colección | Qué es | Campos principales |
 | --- | --- | --- |
-| `ambientes` | Cocina, cuartos, patio… | `id`, `nombre`, `poligono` (contorno interior), `piso.color`, `colorParedes?`, `alturaTecho?`, `exterior?` |
+| `ambientes` | Cocina, cuartos, patio… | `id`, `nombre`, `poligono` (contorno interior), `piso.color`, `colorParedes?`, `colorTecho?`, `alturaTecho?`, `techo?` (inclinado: a dos aguas o a un agua), `exterior?` |
 | `paredes` | Muros rectos | `id`, `a`, `b` (eje), `espesor`, `alto?`, `colorIzq?`, `colorDer?` |
 | `aberturas` | Puertas, ventanas, vanos | `id`, `pared`, `tipo`, `desde`, `ancho`, `alto`, `antepecho?`, `hoja?`, `hojas?` |
-| `entrepisos` | Pisos elevados (la oficina del entretecho) | `id`, `poligono`, `nivel` (cara de arriba del piso), `espesor`, `alturaLibre?`, `barandas?`, `altoBaranda?`, `separacionBaranda?`, `vigas?` (`ejes`, `ancho`, `alto`, `color?`: cuelgan debajo del piso) |
+| `entrepisos` | Pisos elevados (la oficina del entretecho) | `id`, `poligono`, `nivel` (cara de arriba del piso), `espesor`, `color` (el piso), `colorAbajo?` (el techo del ambiente de abajo), `alturaLibre?`, `barandas?`, `altoBaranda?`, `separacionBaranda?`, `vigas?` (`ejes`, `ancho`, `alto`, `color?`: cuelgan debajo del piso) |
 | `escaleras` | Escaleras de tramos rectos | `id`, `tramos` (`desde`, `hasta`, `ancho`, `alturaDesde`, `alturaHasta`, `escalones`, `baranda?`), `descansos?` |
 | `muebles` | Muebles y artefactos como volúmenes simples | `id`, `nombre`, `tipo`, `centro`, `ancho`, `profundidad`, `alto`, `giro?`, `elevacion?`, `color?` |
 
@@ -119,6 +120,34 @@ de pared. Las fachadas son solo las caras que dan afuera del lote.
 paredes `alto: ALTO_CUARTO1`, y la oficina es un piso a 2,80 sobre parte de su planta. Los muebles de
 arriba llevan `elevacion` = nivel de la oficina. Una pared puede tener aberturas encimadas (la puerta
 granero abajo y la ventana de la oficina arriba, en la misma pared).
+
+**Techos inclinados.** Un ambiente con `techo` tiene el techo inclinado en lugar del plano de
+`alturaTecho`. La `cumbrera` es la línea más alta: si pasa por adentro del ambiente, el techo es **a dos
+aguas** (la cocina); si va sobre la cara de una pared, es **a un agua** y cae hacia el otro lado (todos los
+demás).
+
+| Campo | Qué es |
+| --- | --- |
+| `cumbrera` | línea más alta, en planta, de una pared a la otra (de esquina a esquina si es a un agua) |
+| `alturaCumbrera`, `alturaBorde` | altura de la cara de abajo de las tablas en la cumbrera y donde apoyan en las paredes bajas |
+| `viga?` | viga grande a lo largo de la cumbrera: `ancho`, `alto`, `color` |
+| `vigasChicas?` | vigas de cada faldón, en el sentido de la caída: `porLado` (en un techo a un agua, el total), `ancho`, `alto`, `color` y `extremos?`: `'contra-paredes'` (por defecto, la primera y la última pegadas a las paredes) o `'separadas'` (todas a la misma distancia, con media distancia hasta cada pared) |
+
+Las paredes que quedan debajo suben solas hasta el techo (en punta o en pendiente): no hace falta
+cambiarles el `alto`. Las vistas de pared de ese ambiente llegan hasta la cumbrera, y en planta las vigas
+se ven translúcidas (sirve para ubicar las bocas de luz entre viga y viga).
+
+```ts
+// A dos aguas (la cocina)
+techo: {
+  cumbrera: [[1.75, 0], [1.75, 4.8]], alturaBorde: 2.7, alturaCumbrera: 3.1,
+  viga: { ancho: 0.1, alto: 0.2, color: '#6b3a24' },
+  vigasChicas: { porLado: 7, ancho: 0.075, alto: 0.15, color: '#e9e7e1' },
+},
+// A un agua: en casa.ts está `unAgua(bordeAlto, profundidad, alturaBaja, vigas)`, que usa la
+// pendiente supuesta (`PENDIENTE`). Ej.: el cuarto 2, alto contra el fondo y bajo contra el patio.
+techo: unAgua([[C2.x0, C2.z0], [C2.x1, C2.z0]], C2.z1 - C2.z0, 2.7, 5),
+```
 
 Todos los elementos aceptan **`todo: '...'`**: marca el dato como provisorio y lo muestra en **Pendientes**.
 
@@ -278,6 +307,14 @@ Del croquis (11/11/2026):
   pared del frente hasta el borde (foto del techo del cuarto 1). La
   ventana baja da sobre el techo de la cocina. El escritorio ocupa los 2,40 de la pared del frente, con
   dos monitores y dos sillas (confirmado; el sillón se saca).
+- **Techo de la cocina a dos aguas** (foto, 12/11/2026): un faldón cae hacia la calle y el otro hacia el
+  patio interno, con la cumbrera a lo largo (de la pared del cuarto 1 a la de abajo). Tablas blancas,
+  7 vigas chicas blancas por lado (tu conteo) y la viga grande marrón en la cumbrera. La pared de abajo y
+  el tramo del frente contra el cuarto 1 suben en punta hasta el techo.
+- **Techo del cuarto 1** (pedido): las tablas de abajo de la oficina y sus vigas, pintadas de blanco.
+- **Techos a un agua** (marcados en el plano, 12/11/2026), con las vigas en el sentido de la caída: la
+  oficina y el hueco de la escalera (5 vigas) caen hacia el techo de la cocina; el cuarto 2 (5), el
+  lavadero (2, separadas de las paredes) y el baño (4) caen hacia el patio interno.
 - **Medianera derecha recta y escalón en el frente** (confirmado): abajo las medidas suman 7,50 m con
   paredes y arriba 6,55 m, así que la cocina sobresale 0,95 m respecto del cuarto 1. Por eso la pared
   cocina | patio queda 0,85 m corrida de la pared entre los cuartos.
@@ -292,6 +329,10 @@ Supuestos (todos marcados `todo`):
 - Espesores: 0,20 frente y medianeras, 0,15 interiores. Puertas de 2,05 de alto.
 - Altura total del cuarto 1: 4,80 (2,70 + 0,10 de piso de madera + 2,00 de oficina). Los 2,70, hasta
   las tablas; las vigas (0,075 × 0,15, supuesto) cuelgan debajo, a 2,55.
+- Techo de la cocina: cumbrera al medio, tablas a 2,70 sobre el frente y la pared del patio y a 3,10 en la
+  cumbrera; viga marrón de 0,10 × 0,20 y vigas chicas de 0,075 × 0,15.
+- Techos a un agua: 12 % de pendiente; del lado bajo, 2,70 (la oficina, 2,00 sobre su piso); tablas y
+  vigas blancas.
 - Escalera: 5 + 5 escalones y el descanso a 1,40.
 - Oficina: posición exacta y medidas de la ventana; profundidad del escritorio y lugar de cada monitor
   (estimados de las fotos).

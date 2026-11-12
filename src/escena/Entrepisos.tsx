@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Entrepiso, Punto2 } from '../data/tipos';
 import { useCasaResuelta } from '../estado';
+import { extruir } from './extruir';
 import { mate } from './materiales';
 
 export function Entrepisos({ corte }: { corte: number }) {
@@ -18,12 +19,15 @@ export function Entrepisos({ corte }: { corte: number }) {
 function Entrepiso3D({ en, corte }: { en: Entrepiso; corte: number }) {
   // Si está por encima del corte (planta / paredes bajas), se dibuja translúcido.
   const arribaDelCorte = en.nivel > corte;
-  const material = mate(en.color, { opacidad: arribaDelCorte ? 0.35 : 1 });
+  const opacidad = arribaDelCorte ? 0.35 : 1;
+  const material = mate(en.color, { opacidad });
+  // Cara de abajo (el techo del ambiente de abajo), cara de arriba (el piso) y bordes.
+  const materialesLosa = [mate(en.colorAbajo ?? en.color, { opacidad }), material, material];
 
   const losa = useMemo(() => {
     const forma = new THREE.Shape(en.poligono.map(([x, z]) => new THREE.Vector2(x, -z)));
-    const geo = new THREE.ExtrudeGeometry(forma, { depth: en.espesor, bevelEnabled: false });
-    geo.rotateX(-Math.PI / 2); // la extrusión queda hacia +Y
+    const geo = extruir(forma, en.espesor);
+    geo.rotateX(-Math.PI / 2); // la extrusión queda hacia +Y: la tapa de z = 0 es la de abajo
     return geo;
   }, [en.poligono, en.espesor]);
 
@@ -45,11 +49,12 @@ function Entrepiso3D({ en, corte }: { en: Entrepiso; corte: number }) {
   }, [en.barandas, separacion]);
 
   const vigas = en.vigas;
-  const materialVigas = mate(vigas?.color ?? en.color, { opacidad: arribaDelCorte ? 0.35 : 1 });
+  // Doble cara: en las vistas de pared las vigas quedan cortadas y así se ve su sección.
+  const materialVigas = mate(vigas?.color ?? en.color, { opacidad, lado: THREE.DoubleSide });
 
   return (
     <group userData={{ entrepiso: en.id }}>
-      <mesh geometry={losa} position-y={en.nivel - en.espesor} material={material} castShadow={!arribaDelCorte} receiveShadow />
+      <mesh geometry={losa} position-y={en.nivel - en.espesor} material={materialesLosa} castShadow={!arribaDelCorte} receiveShadow />
       {vigas?.ejes.map(([[x0, z0], [x1, z1]], k) => (
         <mesh
           key={`v${k}`}
@@ -59,7 +64,8 @@ function Entrepiso3D({ en, corte }: { en: Entrepiso; corte: number }) {
           castShadow={!arribaDelCorte}
           receiveShadow
         >
-          <boxGeometry args={[Math.hypot(x1 - x0, z1 - z0), vigas.alto, vigas.ancho]} />
+          {/* 2 mm más corta en cada punta: así su cabeza no se pisa con la cara de la pared. */}
+          <boxGeometry args={[Math.hypot(x1 - x0, z1 - z0) - 0.004, vigas.alto, vigas.ancho]} />
         </mesh>
       ))}
       {(en.postes ?? []).map(([x, z], k) => (
