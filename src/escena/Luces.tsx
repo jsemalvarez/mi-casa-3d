@@ -8,6 +8,7 @@ import type { PuntoResuelto } from '../modelo/electrica';
 import { caja } from '../modelo/geometria';
 import { alturaMaximaTecho } from '../modelo/techos';
 import { deFrente, NEGRO } from './Electrica';
+import { Line } from './drei';
 import { mate } from './materiales';
 import { manito, tocado } from './tocar';
 import { cargarZonas, type ZonaLuz } from './zonasLuz';
@@ -25,6 +26,7 @@ const INTENSIDAD: Record<TipoLuz, number> = {
   aplique: 2,
   'aplique-exterior': 2.5,
   'tira-led': 0.7, // por cada foco de la tira
+  guirnalda: 0.8, // por cada tramo
 };
 /** Luz pareja que suma la lámpara en todo su ambiente (rebote en paredes, piso y techo). */
 const REBOTE_INTERIOR = 0.04;
@@ -136,6 +138,15 @@ function fuentesDe(p: PuntoResuelto): Fuente[] {
     case 'aplique-exterior':
       // Tipo tortuga con la luz hacia abajo: alumbra la pared y el piso de afuera.
       return [{ pos: enFrente(0.07, 0.1), hacia: [n.x * 0.35, -1, n.z * 0.35], angulo: 0.95, penumbra: 0.9, intensidad: I }];
+    case 'guirnalda': {
+      // Una luz puntual en lo más bajo de cada tramo.
+      const g = p.ganchos ?? [];
+      const c = p.cuelga ?? 0.3;
+      return g.slice(1).map((b, k) => {
+        const a = g[k];
+        return { pos: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - c - 0.05, (a[2] + b[2]) / 2] as Punto3, intensidad: I };
+      });
+    }
     case 'tira-led': {
       // Varios focos a lo largo de la tira, hacia la mesada.
       const largo = p.largo ?? 1;
@@ -238,6 +249,8 @@ function Artefacto({ p, prendida }: { p: PuntoResuelto; prendida: boolean }) {
           </mesh>
         </group>
       );
+    case 'guirnalda':
+      return <Guirnalda p={p} luz={luz} tocar={tocar} />;
     case 'tira-led': {
       const n = new THREE.Vector3(...p.normal);
       const c = pos.clone().addScaledVector(n, 0.03);
@@ -265,4 +278,66 @@ function Artefacto({ p, prendida }: { p: PuntoResuelto; prendida: boolean }) {
       );
     }
   }
+}
+
+/** Separación entre las lámparas de la guirnalda (m). */
+const PASO_LAMPARAS = 0.5;
+
+/**
+ * Guirnalda: cable que cuelga entre los ganchos (baja `cuelga` en el medio de cada tramo), con
+ * lámparas cada 50 cm, y la caja estanca donde se conecta.
+ */
+function Guirnalda({
+  p,
+  luz,
+  tocar,
+}: {
+  p: PuntoResuelto;
+  luz: THREE.Material;
+  tocar: typeof manito & { onClick: (e: ThreeEvent<MouseEvent>) => void };
+}) {
+  const d = useMemo(() => {
+    const g = (p.ganchos ?? []).map((q) => new THREE.Vector3(...q));
+    const c = p.cuelga ?? 0.3;
+    const cable: Punto3[] = [];
+    const lamparas: THREE.Vector3[] = [];
+    // El primer tramo arranca en la caja.
+    if (g.length) cable.push(p.pos);
+    for (let k = 0; k < g.length - 1; k++) {
+      const a = g[k];
+      const b = g[k + 1];
+      const largo = a.distanceTo(b);
+      const punto = (t: number) => a.clone().lerp(b, t).setY(THREE.MathUtils.lerp(a.y, b.y, t) - 4 * c * t * (1 - t));
+      const pasos = Math.max(8, Math.ceil(largo / 0.1));
+      for (let j = 0; j <= pasos; j++) cable.push(punto(j / pasos).toArray() as Punto3);
+      const n = Math.max(1, Math.round(largo / PASO_LAMPARAS));
+      for (let j = 0; j < n; j++) lamparas.push(punto((j + 0.5) / n));
+    }
+    return { g, cable, lamparas };
+  }, [p]);
+  const n = new THREE.Vector3(...p.normal);
+  return (
+    <group userData={{ electrica: p.id }} {...tocar}>
+      {/* Caja estanca donde se conecta */}
+      <mesh position={new THREE.Vector3(...p.pos).addScaledVector(n, 0.03)} quaternion={deFrente(p.normal)} material={mate(NEGRO)}>
+        <boxGeometry args={[0.09, 0.09, 0.06]} />
+      </mesh>
+      {d.g.map((q, k) => (
+        <mesh key={k} position={q} material={mate(NEGRO)}>
+          <sphereGeometry args={[0.015, 8, 6]} />
+        </mesh>
+      ))}
+      {d.cable.length > 1 && <Line points={d.cable} color={NEGRO} lineWidth={1.5} />}
+      {d.lamparas.map((q, k) => (
+        <group key={k} position={q}>
+          <mesh position={[0, -0.02, 0]} material={mate(NEGRO)}>
+            <cylinderGeometry args={[0.012, 0.012, 0.03, 8]} />
+          </mesh>
+          <mesh position={[0, -0.06, 0]} material={luz}>
+            <sphereGeometry args={[0.026, 12, 8]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
 }

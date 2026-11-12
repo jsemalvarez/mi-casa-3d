@@ -34,6 +34,7 @@ const C1 = amb('cuarto1');
 const C2 = amb('matrimonial');
 const LAV = amb('lavadero');
 const BAN = amb('banio');
+const PAT = amb('patio');
 const oficina = casa.entrepisos.find((e) => e.id === 'oficina')!;
 const OF = { ...limites(oficina.poligono), nivel: oficina.nivel };
 
@@ -58,6 +59,11 @@ const SALIDA_TABLERO = {
   izq: Z_TABLERO - TABLERO.ancho / 2 + 0.05,
   der: Z_TABLERO + TABLERO.ancho / 2 - 0.05,
 };
+/** Cara del baño que da al patio (z). */
+const Z_BANIO_PATIO = BAN.z0 - casa.paredes.find((w) => w.id === 'p-banio-patio')!.espesor;
+/** Guirnalda del patio: altura de los ganchos y z de la caja donde se conecta (en la esquina del lavadero). */
+const Y_GANCHOS = 2.35;
+const Z_GUIRNALDA = PAT.z1 - 0.1;
 /** z de las teclas de la puerta balcón; abajo, en la misma bajada, los tomas del comedor y del patio. */
 const Z_TECLAS_PATIO = 2.9;
 /** x de la toma del termotanque (adentro de la garita del patio; el cable sale del baño). */
@@ -259,6 +265,23 @@ const luces: Luz[] = [
     ambiente: 'banio',
     pared: { pared: 'p-banio-patio', ambiente: 'banio', en: 5.8, altura: 2.25, atraviesa: true },
   },
+  {
+    // Dibujo del 12/11/2026: en zigzag de lado a lado del patio.
+    id: 'l-guirnalda',
+    nombre: 'Guirnalda del patio',
+    tipo: 'guirnalda',
+    circuito: 'c1',
+    ambiente: 'patio',
+    pared: { pared: 'p-cocina-patio', ambiente: 'cocina', en: Z_GUIRNALDA, altura: Y_GANCHOS, atraviesa: true },
+    ganchos: [
+      [PAT.x0, Z_GUIRNALDA], // esquina de la puerta del lavadero (ahí se conecta)
+      [4.85, PAT.z0], // pared del cuarto 2
+      [BAN.x0 + 0.12, Z_BANIO_PATIO], // esquina del baño
+      [7.1, PAT.z0], // pared del cuarto 2, cerca de la medianera
+    ],
+    cuelga: 0.35,
+    todo: 'Según tu dibujo: de la esquina de la puerta del lavadero a la pared del cuarto 2, a la esquina del baño y de vuelta a la pared del cuarto 2 (unos 9,5 m entre ganchos; las x de los ganchos son estimadas). Supuse los ganchos a 2,35 y que en el medio de cada tramo baja 35 cm (queda a 2,00). Se conecta en una caja estanca en la esquina y se prende con una tecla adentro, junto a las del patio.',
+  },
   // Cuarto 1, escalera y oficina
   {
     id: 'l-cuarto1',
@@ -375,6 +398,7 @@ const cajas: CajaElectrica[] = [
     modulos: [
       { tipo: 'tecla', luces: ['l-cocina'] },
       { tipo: 'tecla', luces: ['l-patio-1', 'l-patio-2'] },
+      { tipo: 'tecla', luces: ['l-guirnalda'] },
     ],
   },
   {

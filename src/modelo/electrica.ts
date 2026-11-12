@@ -157,6 +157,8 @@ export interface PuntoResuelto {
   alto?: number;
   largo?: number;
   cuelga?: number;
+  /** Guirnaldas: ganchos en 3D, a la altura de la caja. */
+  ganchos?: Punto3[];
   /** Vista de pared donde se lo ve de frente (para ir desde los pendientes). */
   vista?: string;
 }
@@ -672,6 +674,8 @@ export function resolverInstalacion(inst: Instalacion, r: CasaResuelta): Electri
         modulos: [],
         color,
         largo: l.largo,
+        cuelga: l.cuelga,
+        ganchos: l.ganchos?.map((g): Punto3 => [g[0], u.pos[1], g[1]]),
         vista: vistaDe(u, l.pared.atraviesa),
       });
       anclas.set(l.id, u.pos);
@@ -1012,6 +1016,8 @@ export function resolverInstalacion(inst: Instalacion, r: CasaResuelta): Electri
   const apliques = inst.luces.filter((l) => l.tipo === 'aplique' || l.tipo === 'aplique-exterior').length;
   item(CAJAS, 'Caja de paso para boca de techo', bocasTecho, 'u.', 'redonda u octogonal, exterior');
   item(CAJAS, 'Caja de paso para aplique', apliques, 'u.', 'o la base que traiga el aplique');
+  const nGuirnaldas = inst.luces.filter((l) => l.tipo === 'guirnalda').length;
+  item(CAJAS, 'Caja estanca (IP44) para conectar la guirnalda', nGuirnaldas, 'u.', 'con bornera o toma; con tecla adentro');
   item(CAJAS, 'Caja de paso / derivación', derivaciones.size, 'u.', 'en las T donde hay que empalmar');
 
   // Cables
@@ -1114,12 +1120,42 @@ export function resolverInstalacion(inst: Instalacion, r: CasaResuelta): Electri
     item(LUM, 'Tira de LED 12 V (luz cálida)', Math.ceil(metrosTira), 'm', 'con perfil de aluminio');
     item(LUM, 'Fuente para tira de LED 12 V', tiras.length, 'u.');
   }
-  item(LUM, 'Lámpara LED (E27 o según la luminaria)', inst.luces.length - tiras.length, 'u.');
+  // Guirnaldas: largo colgado (cada tramo baja `cuelga` en el medio: arco ≈ L + 8·c²/3L) + 50 cm.
+  const guirnaldas = puntos.filter((p) => p.tipoLuz === 'guirnalda' && p.ganchos && p.ganchos.length >= 2);
+  let metrosGuirnalda = 0;
+  let metrosGuia = 0;
+  let nGanchos = 0;
+  for (const g of guirnaldas) {
+    const ganchos = g.ganchos!;
+    const c = g.cuelga ?? 0.3;
+    nGanchos += ganchos.length;
+    for (let k = 0; k < ganchos.length - 1; k++) {
+      const L = dist2([ganchos[k][0], ganchos[k][2]], [ganchos[k + 1][0], ganchos[k + 1][2]]);
+      metrosGuia += L;
+      metrosGuirnalda += L + (8 * c * c) / (3 * Math.max(L, 0.1));
+    }
+    metrosGuirnalda += 0.5;
+  }
+  if (guirnaldas.length) {
+    const lamparas = Math.round(metrosGuirnalda / 0.5);
+    item(
+      LUM,
+      'Guirnalda de luces LED para exterior (IP44)',
+      Math.ceil(metrosGuirnalda),
+      'm',
+      `${guirnaldas.map((g) => g.nombre.replace(/^Guirnalda /, '')).join(' · ')} · con unas ${lamparas} lámparas (una cada 50 cm); se venden de 5, 10 o 15 m`,
+    );
+  }
+  item(LUM, 'Lámpara LED (E27 o según la luminaria)', inst.luces.length - tiras.length - guirnaldas.length, 'u.');
 
   // Varios
   const VAR = 'Varios';
   const pasajes = red.aristas.filter((a) => a.pasaje).length;
   item(VAR, 'Agujeros en paredes para pasar cables', pasajes, 'u.', 'con un caño corto o pasamuro');
+  if (guirnaldas.length) {
+    item(VAR, 'Gancho (armella) con taco para colgar la guirnalda', nGanchos, 'u.');
+    item(VAR, 'Cable de acero de 2 mm con tensores (guía de la guirnalda)', Math.ceil(metrosGuia * 1.1), 'm', 'la guirnalda se ata a la guía y no carga su peso');
+  }
   const fijaciones = Math.ceil(metrosCanal / PASO_FIJACION) + 2 * (inst.cajas.length + inst.luces.length) + 4;
   item(VAR, 'Tornillos y tarugos de 6 mm', Math.ceil(fijaciones / 10) * 10, 'u.', 'una fijación cada 50 cm de canal y dos por caja');
   item(VAR, 'Conectores de empalme (tipo Wago)', 3 * (inst.luces.length + derivaciones.size) + 10, 'u.', 'aprox.');

@@ -305,6 +305,11 @@ caras de los ambientes de `casa.ts`: si cambia una medida de la casa, la instala
 - Luces: tres colgantes en la viga de la cumbrera de la cocina, plafones en los demás ambientes, tira de LED
   bajo la alacena, apliques en la escalera, el espejo, la entrada y el patio. La escalera se prende abajo y
   arriba (combinación).
+- **Guirnalda del patio** (dibujo del 12/11/2026): en zigzag entre 4 ganchos a 2,35 (esquina de la puerta del
+  lavadero → pared del cuarto 2 → esquina del baño → pared del cuarto 2), bajando 35 cm en el medio de cada tramo.
+  Se conecta en una caja estanca en la esquina y se prende con una tecla junto a las del patio. Se carga como una
+  luz `tipo: 'guirnalda'` con `ganchos` (en planta) y `cuelga`; el cómputo suma los metros, los ganchos y un
+  cable de acero de guía.
 - **Pasillo de entrada**: cuatro apliques tipo tortuga sobre el muro del lado de la casa, con combinación entre
   la entrada y el portón. El canal sale por el frente de la cocina, al lado de la ventanita, y va a 1,90 (los
   muros tienen 2,00).

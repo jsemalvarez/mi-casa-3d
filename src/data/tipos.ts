@@ -358,7 +358,7 @@ export interface CajaElectrica extends EnPared, ConTodo {
   modulos: Modulo[];
 }
 
-export type TipoLuz = 'colgante' | 'plafon' | 'aplique' | 'aplique-exterior' | 'tira-led';
+export type TipoLuz = 'colgante' | 'plafon' | 'aplique' | 'aplique-exterior' | 'tira-led' | 'guirnalda';
 
 export interface Luz extends ConTodo {
   id: string;
@@ -381,8 +381,13 @@ export interface Luz extends ConTodo {
   desde?: string | Punto2;
   /** Tiras de LED: largo (m). */
   largo?: number;
-  /** Colgantes: cuánto cuelga la pantalla debajo de la boca (m). */
+  /** Colgantes: cuánto cuelga la pantalla debajo de la boca. Guirnaldas: cuánto baja en el medio de cada tramo (m). */
   cuelga?: number;
+  /**
+   * Guirnaldas: ganchos de donde se cuelga, en planta y en orden, todos a la altura de
+   * `pared.altura`. Arranca en la caja de `pared` (donde se conecta), que tiene que estar cerca del primero.
+   */
+  ganchos?: Punto2[];
 }
 
 /**
